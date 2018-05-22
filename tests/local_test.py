@@ -66,7 +66,6 @@ def main():
            '--downlink-trace', ack_trace,
            '--extra-mm-link-args',
            '--uplink-queue=droptail --uplink-queue-args=packets=200',
-           #'--uplink-queue=droptail --uplink-queue-args=packets=200',
            '--prepend-mm-cmds', 'mm-delay 10',
            '--append-mm-cmds', 'mm-delay 10',
            '--schemes', '%s' % cc]
