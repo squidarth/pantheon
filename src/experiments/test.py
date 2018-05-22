@@ -10,6 +10,7 @@ import signal
 import traceback
 from subprocess import PIPE
 from collections import namedtuple
+import copy
 
 import arg_parser
 import context
@@ -509,7 +510,7 @@ class Test(object):
                 recv_manager.stdin.flush()
             else:
                 assert(hasattr(self, 'flow_objs'))
-                flow = self.flow_objs[i]
+                flow = self.flow_objs[i+1]
                 if flow.run_first == 'receiver':
                     send_manager.stdin.write(second_cmd)
                     send_manager.stdin.flush()
@@ -742,7 +743,20 @@ class Test(object):
 
         sys.stderr.write('Done testing %s\n' % self.cc)
 
-
+def get_tests(args):
+    # get tests and args dict from each test specified in config file
+    test_args = copy.deepcopy(args) #vars(args)
+    tests = []
+    for run_id in xrange(args.start_run_id,
+                         args.start_run_id + args.run_times):
+        for test_name, test_description in args.test_config['tests'].items():
+            #test_args['test_name'] = test_name
+            #test_args['flows'] = test_description['flows']
+            test_args.test_config['test-name'] = test_name
+            test_args.test_config['flows'] = test_description['flows']
+            tests.append(Test(test_args, run_id, None))
+    return tests
+        
 def run_tests(args):
     # check and get git summary
     git_summary = utils.get_git_summary(args.mode,
@@ -763,17 +777,21 @@ def run_tests(args):
     else:
         assert(args.test_config is not None)
         if args.random_order:
-            random.shuffle(args.test_config['flows'])
-        cc_schemes = [flow['scheme'] for flow in args.test_config['flows']]
+            for test in args.test_config['tests'].values():
+                random.shuffle(test['flows'])
+        #cc_schemes = [flow['scheme'] for flow in args.test_config['flows']]
+        cc_schemes = []
 
     # run tests
-    for run_id in xrange(args.start_run_id,
-                         args.start_run_id + args.run_times):
-        if not hasattr(args, 'test_config') or args.test_config is None:
+    if not hasattr(args, 'test_config') or args.test_config is None:
+        for run_id in xrange(args.start_run_id,
+                                 args.start_run_id + args.run_times):
             for cc in cc_schemes:
                 Test(args, run_id, cc).run()
-        else:
-            Test(args, run_id, None).run()
+    else:
+        tests = get_tests(args)
+        for test in tests:
+            test.run()
 
     # save metadata
     meta = vars(args).copy()
@@ -802,7 +820,7 @@ def pkill(args):
 
 
 def main():
-    args = arg_parser.parse_test()
+    args = arg_parser.parse_test(sys.argv[1:])
 
     try:
         run_tests(args)

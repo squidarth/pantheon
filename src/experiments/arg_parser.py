@@ -179,8 +179,9 @@ def verify_test_args(args):
             sys.exit('interval time between flows is too long to be '
                      'fit in runtime')
 
+"""
 def parse_test_config(test_config, local, remote):
-    # Check config file has atleast a test-name and a description of flows
+    # Check config file has at least a tests key, test names, and a description of flows
     if 'test-name' not in test_config:
         sys.exit('Config file must have a test-name argument')
     if 'flows' not in test_config:
@@ -195,9 +196,27 @@ def parse_test_config(test_config, local, remote):
 
     local.set_defaults(**defaults)
     remote.set_defaults(**defaults)
+"""
 
+def parse_test_config(config_args, args):
+    test_config = None
+    if config_args.config_file is not None:
+        with open(config_args.config_file) as f:
+            test_config = yaml.safe_load(f)
+        
+        # Check config file has tests key, test names, and a description of flows
+        # TODO: add an actual YAML schema vailidator
+        if 'tests' not in test_config:
+            sys.exit('Config file must have a "tests" argument')
+        if type(test_config['tests']) is not dict:
+            sys.exit('Config file must specify "tests" as a dictionary')
+        for test_description in test_config['tests'].values():
+            if ('flows' not in test_description):
+                sys.exit('Config file must have a "flows" argument')
+    args.test_config = test_config
 
-def parse_test():
+            
+def parse_test(sys_argv):
     # Load configuration file before parsing other command line options
     # Command line options will override options in config file
     config_parser = argparse.ArgumentParser(
@@ -206,9 +225,9 @@ def parse_test():
         add_help=False)
     config_parser.add_argument('-c','--config_file', metavar='CONFIG',
                                help='path to configuration file. '
-                               'command line arguments will override options '
+                               'command line arguments will specify unset options '
                                'in config file. ')
-    config_args, remaining_argv = config_parser.parse_known_args()
+    config_args, remaining_argv = config_parser.parse_known_args(sys_argv)
 
     parser = argparse.ArgumentParser(
         description='perform congestion control tests',
@@ -228,23 +247,26 @@ def parse_test():
     parse_test_local(local)
     parse_test_remote(remote)
 
-    # Make settings in config file the defaults
-    test_config = None
-    if config_args.config_file is not None:
-        with open(config_args.config_file) as f:
-            test_config = yaml.safe_load(f)
-        parse_test_config(test_config, local, remote)
-
+    # need to set these default values in case the test_config is used
+    defaults = {'schemes':None, 'all':False, 'flows':1, 'test_config':None}
+    local.set_defaults(**defaults)
+    remote.set_defaults(**defaults)
+    
+    # Parse command line args & test config
     args = parser.parse_args(remaining_argv)
+    parse_test_config(config_args, args)
+
     if args.schemes is not None:
         verify_schemes(args.schemes)
         args.test_config = None
     elif not args.all:
-        assert(test_config is not None)
-        schemes = ' '.join([flow['scheme'] for flow in test_config['flows']])
-        verify_schemes(schemes)
+        assert(args.test_config is not None)
+        # verify schemes specified in each test
+        for test_description in args.test_config['tests'].values():
+            schemes = ' '.join([flow['scheme'] for flow in test_description['flows']])
+            verify_schemes(schemes)
 
     verify_test_args(args)
     utils.make_sure_dir_exists(args.data_dir)
-
+    
     return args
