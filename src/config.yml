@@ -67,3 +67,7 @@ schemes:
     name: FillP-Sheep
     color: red
     marker: '+'
+  reno:
+    name: TCP Reno
+    color: skyblue
+    marker: '+'
